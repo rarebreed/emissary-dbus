@@ -14,6 +14,8 @@ class DBusWSServer {
   ifaceName: string;
   sysbus: MessageBus;
   targetSvc: DBusService;
+  //wss: IWebSocketServer;
+  subject: Rx.BehaviorSubject;
 
   constructor( svcName: string = 'com.redhat.SubscriptionManager'
              , objPath: string = "/EntitlementStatus"
@@ -25,10 +27,12 @@ class DBusWSServer {
     this.objPath = objPath;
     this.ifaceName = ifaceName;
 
+    this.subject = Rx.BehaviorSubject(0);
+
     // TODO: Figure out how to type these.  I don't think we have to create a class for each object here, but we
     // need to at least specify an interface.
     this.sysbus = dbus.getSystemBus();
-    this.targetSvc = sb.getService(svcName);
+    this.targetSvc = this.sysbus.getService(svcName);
   }
 
   makeWebSocketServer(port: number = 13172): void {
@@ -54,19 +58,18 @@ class DBusWSServer {
             console.log("Unknown operation");
             break;
         }
+        ws.send(history.peek());
       });
-
-      ws.send(history.peek());
     });
+  }
 
-    statusHandler(status) {
+  statusHandler(status: number): void {
       // FIXME: get the starting status instead of 0
       this.subject
         .scan((acc: Stack<number>, current: number) => {
           history.push(current), 0
         })
         .subscribe(statusObserver);
-    };
   }
 
   /*
@@ -74,10 +77,11 @@ class DBusWSServer {
    * accumulate the status over time in a stack so that we can easily retrieve the most recent status.  It does this
    * by using the Subject.  As the event is received the scan method will store it in an immutable stack
    */
-  setInterfaceHandler(hdlr) {
+  setInterfaceHandler(hdlr): void {
     this.targetSvc.getInterface (this.objPath, this.ifaceName, hdlr);
   }
 }
+
 
 
 
